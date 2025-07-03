@@ -1,0 +1,62 @@
+library(shiny)
+library(plotly)
+
+ui <- fluidPage(
+  plotlyOutput("distPlot"),
+  numericInput("alpha", "Alpha (Type I error rate):", value = 0.05, min = 0.001, max = 1.00, step = 0.001),
+  verbatimTextOutput("powerText")
+)
+
+server <- function(input, output) {
+  output$distPlot <- renderPlotly({
+    mu0 <- 1000
+    mu1 <- 1008.3
+    sigma <- 50
+    n <- 100
+    se <- sigma / sqrt(n)
+    crit <- qnorm(1 - input$alpha, mean = mu0, sd = se)
+    
+    x <- seq(mu0 - 4*se, mu1 + 4*se, length = 500)
+    y0 <- dnorm(x, mean = mu0, sd = se)
+    y1 <- dnorm(x, mean = mu1, sd = se)
+    
+    p <- plot_ly() %>%
+      add_lines(x = x, y = y0, name = "H0", line = list(color = "blue", width = 2)) %>%
+      add_lines(x = x, y = y1, name = "H1", line = list(color = "darkgreen", width = 2)) %>%
+      add_segments(x = crit, xend = crit, y = 0, yend = max(y0, y1), name = "Critical Value",
+                   line = list(dash = "dash", width = 1)) %>%
+      layout(
+        title = "Right-Tailed Test",
+        xaxis = list(title = "Sample Mean"),
+        yaxis = list(title = "Density of sample mean"),
+        showlegend = TRUE
+      )
+    
+    x_alpha <- seq(crit, max(x), length = 100)
+    y_alpha <- dnorm(x_alpha, mean = mu0, sd = se)
+    p <- add_polygons(p, x = c(x_alpha, rev(x_alpha)), y = c(y_alpha, rep(0, length(y_alpha))),
+                      fillcolor = "rgba(255,0,0,0.4)", line = list(width = 0), name = "α")
+    
+    x_beta <- seq(min(x), crit, length = 100)
+    y_beta <- dnorm(x_beta, mean = mu1, sd = se)
+    p <- add_polygons(p, x = c(x_beta, rev(x_beta)), y = c(y_beta, rep(0, length(y_beta))),
+                      fillcolor = "rgba(0,0.5,0,0.4)", line = list(width = 0), name = "β")
+    
+    p
+  })
+  
+  output$powerText <- renderText({
+    mu0 <- 1000
+    mu1 <- 1008.3
+    sigma <- 50
+    n <- 100
+    se <- sigma / sqrt(n)
+    crit <- qnorm(1 - input$alpha, mean = mu0, sd = se)
+    beta <- pnorm(crit, mean = mu1, sd = se)
+    power <- 1 - beta
+    paste0("Beta (Type II error): ", round(beta, 4),
+           "\nPower of test (1 - Beta): ", round(power, 4))
+  })
+}
+
+shinyApp(ui, server)
